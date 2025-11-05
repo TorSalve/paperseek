@@ -159,9 +159,14 @@ class DOIClient(DatabaseClient):
         # Extract URL
         url = raw_data.get("URL") or (f"https://doi.org/{doi}" if doi else None)
 
+        # Extract title (DOI API returns title as a list)
+        title = raw_data.get("title", "Unknown")
+        if isinstance(title, list):
+            title = title[0] if title else "Unknown"
+
         return Paper(
             doi=doi,
-            title=raw_data.get("title", "Unknown"),
+            title=title,
             authors=authors,
             abstract=raw_data.get("abstract"),
             year=year,

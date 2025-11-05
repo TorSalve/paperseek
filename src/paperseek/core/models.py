@@ -14,6 +14,10 @@ class Author(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    def __str__(self) -> str:
+        """Return the author's name as string representation."""
+        return self.name
+
 
 class Paper(BaseModel):
     """

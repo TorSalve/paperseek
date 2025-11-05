@@ -203,16 +203,16 @@ def load_config(
     if config_file:
         file_config = AcademicSearchConfig.from_yaml(config_file)
         # Merge configurations
-        for field_name in file_config.model_fields:
+        for field_name in AcademicSearchConfig.model_fields:
             setattr(config, field_name, getattr(file_config, field_name))
 
     # Override with dict config
     if config_dict:
         dict_config = AcademicSearchConfig.from_dict(config_dict)
-        for field_name in dict_config.model_fields:
+        for field_name in AcademicSearchConfig.model_fields:
             value = getattr(dict_config, field_name)
             # Only override if value is not default
-            if value != config.model_fields[field_name].default:
+            if value != AcademicSearchConfig.model_fields[field_name].default:
                 setattr(config, field_name, value)
 
     return config

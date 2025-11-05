@@ -382,7 +382,7 @@ Format:
 
 ### High Priority
 
-- [ ] Add support for more databases (PubMed, arXiv, etc.)
+- [x] Add support for more databases (PubMed, arXiv, etc.)
 - [ ] Improve test coverage
 - [ ] Add CLI tool enhancements
 - [ ] Performance optimizations
@@ -417,4 +417,4 @@ Thank you for contributing to PaperSeek! Your contributions help make academic r
 
 ---
 
-**Last Updated:** 2025-01-01
+**Last Updated:** 2025-11-05

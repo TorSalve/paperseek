@@ -213,9 +213,13 @@ class CrossRefClient(DatabaseClient):
         # Extract abstract
         abstract = raw_data.get("abstract")
 
+        # Extract title
+        title_list = raw_data.get("title", ["Unknown"])
+        title = title_list[0] if title_list else "Unknown"
+
         return Paper(
             doi=raw_data.get("DOI"),
-            title=raw_data.get("title", ["Unknown"])[0],
+            title=title,
             authors=authors,
             abstract=abstract,
             year=year,
