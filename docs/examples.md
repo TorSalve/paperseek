@@ -372,7 +372,7 @@ python search_cli.py "climate change" \
     --max-results 100
 ```
 
-For more details, see the [CLI documentation](https://github.com/yourusername/academic-search-unified/blob/main/search_cli.py).
+For more details, see the [CLI documentation](https://github.com/TorSalve/paperseek/blob/main/search_cli.py).
 
 ## See Also
 

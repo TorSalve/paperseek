@@ -25,12 +25,12 @@ Thank you for considering contributing to PaperSeek! This document provides guid
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/paperseek.git
+   git clone https://github.com/TorSalve/paperseek.git
    cd paperseek
    ```
 3. **Add upstream remote**:
    ```bash
-   git remote add upstream https://github.com/ORIGINAL_OWNER/paperseek.git
+   git remote add upstream https://github.com/TorSalve/paperseek.git
    ```
 
 ## Development Setup
@@ -56,7 +56,7 @@ Thank you for considering contributing to PaperSeek! This document provides guid
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/yourusername/paperseek/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/TorSalve/paperseek/issues)
 2. If not, create a new issue with:
    - Clear title and description
    - Steps to reproduce
@@ -66,7 +66,7 @@ Thank you for considering contributing to PaperSeek! This document provides guid
 
 ### Suggesting Features
 
-1. Check existing [Issues](https://github.com/yourusername/paperseek/issues) and [Pull Requests](https://github.com/yourusername/paperseek/pulls)
+1. Check existing [Issues](https://github.com/TorSalve/paperseek/issues) and [Pull Requests](https://github.com/TorSalve/paperseek/pulls)
 2. Create a new issue describing:
    - The problem you're trying to solve
    - Your proposed solution

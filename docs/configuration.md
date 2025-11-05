@@ -164,7 +164,7 @@ client = UnifiedSearchClient(  enabled: true
 
   max_retries: 3
 
-See the [example configuration file](https://github.com/yourusername/academic-search-unified/blob/main/config.yaml.example) for a complete reference.  retry_delay: 1.0
+See the [example configuration file](https://github.com/TorSalve/paperseek/blob/main/config.yaml.example) for a complete reference.  retry_delay: 1.0
 
 
 
