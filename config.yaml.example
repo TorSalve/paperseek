@@ -1,0 +1,93 @@
+# General settings
+email: your.email@example.com  # For polite API requests
+user_agent: AcademicSearchUnified/0.1.0
+log_level: INFO
+# log_file: academic_search.log  # Optional: log to file
+
+# Default search settings
+default_max_results: 100
+default_timeout: 30
+
+# Fallback behavior
+fallback_mode: sequential  # Options: sequential, parallel, first
+fail_fast: false  # If true, stop on first error
+
+# Database configurations
+crossref:
+  enabled: true
+  # api_key: optional_api_key  # Not required for CrossRef
+  rate_limit_per_second: 1.0
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+
+openalex:
+  enabled: true
+  # api_key: your_openalex_api_key  # Optional: For Premium users only
+  # Email is automatically added via mailto parameter for polite pool access
+  # Free tier with polite pool: ~10 req/sec, Premium tier: higher limits + special filters
+  rate_limit_per_second: 5.0  # Conservative for polite pool (10/sec limit)
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+
+semantic_scholar:
+  enabled: true
+  api_key: your_semantic_scholar_api_key  # Recommended for higher limits
+  rate_limit_per_second: 1.0  # Without API key: ~1/sec, with key: ~10/sec
+  rate_limit_per_minute: 100
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+
+doi:
+  enabled: true
+  rate_limit_per_second: 2.0
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+
+pubmed:
+  enabled: true
+  # api_key: your_ncbi_api_key  # Optional: For 10 req/sec (vs 3 req/sec without)
+  # Email is recommended by NCBI for tracking usage
+  rate_limit_per_second: 2.5  # Conservative (3/sec without key, 10/sec with key)
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+
+arxiv:
+  enabled: true
+  # No API key required
+  # Rate limiting: 1 request per 3 seconds recommended by arXiv
+  rate_limit_per_second: 0.33  # ~1 request per 3 seconds
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+
+core:
+  enabled: true
+  api_key: your_core_api_key  # Required - register at https://core.ac.uk/services/api
+  # Free tier: 10,000 requests/day
+  rate_limit_per_second: 2.0
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+
+unpaywall:
+  enabled: true
+  # No API key required, but email is required
+  # Free for non-commercial use - 100,000 requests/day
+  rate_limit_per_second: 5.0
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+
+dblp:
+  enabled: true
+  # No API key required
+  # Be respectful with rate limiting
+  rate_limit_per_second: 2.0
+  timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
