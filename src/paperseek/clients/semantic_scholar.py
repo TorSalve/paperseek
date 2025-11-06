@@ -58,7 +58,13 @@ class SemanticScholarClient(DatabaseClient):
         # Build query
         query = filters.title or filters.author or ""
 
-        if not query and not filters.doi:
+        # Check if we should use bulk search endpoint
+        # Bulk search works better for venue/year-only searches
+        use_bulk = not query and (filters.venue or filters.year or filters.year_start or filters.year_end)
+        
+        self.logger.info(f"Query: '{query}', use_bulk: {use_bulk}, venue: {filters.venue}, year: {filters.year}")
+
+        if not query and not filters.doi and not use_bulk:
             self.logger.warning("No search query provided")
             return SearchResult(
                 query_info={"filters": filters.model_dump()}, databases_queried=[self.database_name]
@@ -69,11 +75,14 @@ class SemanticScholarClient(DatabaseClient):
 
         # Build params
         params: Dict[str, Any] = {
-            "query": query,
             "limit": min(filters.max_results, 100),  # S2 default max
             "offset": filters.offset,
             "fields": self._get_fields_param(),
         }
+
+        # Add query if present
+        if query:
+            params["query"] = query
 
         # Add year filter if specified
         if filters.year:
@@ -86,8 +95,13 @@ class SemanticScholarClient(DatabaseClient):
         if filters.venue:
             params["venue"] = filters.venue
 
-        # Make request
-        url = f"{self.BASE_URL}/paper/search"
+        # Make request - use bulk endpoint if no query but has filters
+        if use_bulk:
+            url = f"{self.BASE_URL}/paper/search/bulk"
+            self.logger.info(f"Using bulk search endpoint with params: {params}")
+        else:
+            url = f"{self.BASE_URL}/paper/search"
+        
         response = self._make_request(url, params=params)
 
         data = response.json()
@@ -263,7 +277,7 @@ class SemanticScholarClient(DatabaseClient):
 
         # Extract authors using AuthorNormalizer
         authors = []
-        for author_data in raw_data.get("authors", []):
+        for author_data in raw_data.get("authors") or []:
             author = AuthorNormalizer.create_author(
                 name=author_data.get("name"),
                 # S2 doesn't provide affiliation in basic API
@@ -274,7 +288,7 @@ class SemanticScholarClient(DatabaseClient):
         venue = TextNormalizer.clean_text(raw_data.get("venue"))
 
         # Determine type - S2 provides publication types
-        pub_types = raw_data.get("publicationTypes", [])
+        pub_types = raw_data.get("publicationTypes") or []
         conference = None
         journal = None
 
@@ -288,7 +302,7 @@ class SemanticScholarClient(DatabaseClient):
 
         # Extract keywords from fields of study with text normalization
         keywords = []
-        for field in raw_data.get("s2FieldsOfStudy", []):
+        for field in raw_data.get("s2FieldsOfStudy") or []:
             if field.get("category"):
                 cleaned_keyword = TextNormalizer.clean_text(field["category"])
                 if cleaned_keyword:

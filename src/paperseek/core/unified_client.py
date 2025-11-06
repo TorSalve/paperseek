@@ -146,6 +146,7 @@ class UnifiedSearchClient:
 
     def search(
         self,
+        filters: Optional[SearchFilters] = None,
         venue: Optional[str] = None,
         year: Optional[int] = None,
         year_range: Optional[tuple] = None,
@@ -155,12 +156,14 @@ class UnifiedSearchClient:
         keywords: Optional[List[str]] = None,
         required_fields: Optional[List[str]] = None,
         max_results: int = 100,
+        mode: Optional[str] = None,
         **kwargs,
     ) -> SearchResult:
         """
         Search across configured databases.
 
         Args:
+            filters: SearchFilters object (if provided, other filter args are ignored)
             venue: Conference or journal name
             year: Publication year
             year_range: Tuple of (start_year, end_year)
@@ -170,6 +173,7 @@ class UnifiedSearchClient:
             keywords: List of keywords
             required_fields: Fields that must be present in results
             max_results: Maximum number of results
+            mode: Search mode ('sequential' or 'parallel'). Overrides client default if provided.
             **kwargs: Additional search parameters
 
         Returns:
@@ -203,30 +207,49 @@ class UnifiedSearchClient:
             >>> if results.papers:
             ...     paper = results.papers[0]
             ...     print(f"Title: {paper.title}")
+            
+            Search with filters object:
+
+            >>> filters = SearchFilters(venue="CHI", year=2025, max_results=100)
+            >>> results = client.search(filters=filters)
         """
-        # Build search filters
-        filters = SearchFilters(
-            venue=venue,
-            year=year,
-            title=title,
-            author=author,
-            doi=doi,
-            keywords=keywords,
-            required_fields=required_fields,
-            max_results=max_results,
-        )
+        # If filters object provided, use it directly
+        if filters is not None:
+            search_filters = filters
+        else:
+            # Build search filters from individual parameters
+            search_filters = SearchFilters(
+                venue=venue,
+                year=year,
+                title=title,
+                author=author,
+                doi=doi,
+                keywords=keywords,
+                required_fields=required_fields,
+                max_results=max_results,
+            )
 
-        # Handle year range
-        if year_range:
-            filters.year_start = year_range[0]
-            filters.year_end = year_range[1]
+            # Handle year range
+            if year_range:
+                search_filters.year_start = year_range[0]
+                search_filters.year_end = year_range[1]
 
-        # Additional kwargs
-        for key, value in kwargs.items():
-            if hasattr(filters, key):
-                setattr(filters, key, value)
-
-        return self.search_with_filters(filters)
+            # Additional kwargs
+            for key, value in kwargs.items():
+                if hasattr(search_filters, key):
+                    setattr(search_filters, key, value)
+        
+        # Handle mode override
+        original_mode = self.fallback_mode
+        if mode is not None:
+            self.fallback_mode = mode
+        
+        try:
+            return self.search_with_filters(search_filters)
+        finally:
+            # Restore original mode
+            if mode is not None:
+                self.fallback_mode = original_mode
 
     def search_with_filters(self, filters: SearchFilters) -> SearchResult:
         """

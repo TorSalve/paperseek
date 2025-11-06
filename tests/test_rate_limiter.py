@@ -10,53 +10,37 @@ from paperseek.utils.rate_limiter import RateLimiter, DatabaseRateLimiter
 class TestRateLimiter:
     """Test suite for RateLimiter."""
 
-    @patch('paperseek.utils.rate_limiter.Limiter')
-    def test_init_with_per_second(self, mock_limiter_class):
+    def test_init_with_per_second(self):
         """Test rate limiter initialization with per-second limit."""
-        mock_limiter = Mock()
-        mock_limiter_class.return_value = mock_limiter
-        
         limiter = RateLimiter(requests_per_second=2.0)
         assert limiter.requests_per_second == 2.0
+        assert limiter._simple_limiter is not None
 
-    @patch('paperseek.utils.rate_limiter.Limiter')
-    def test_init_with_per_minute(self, mock_limiter_class):
+    def test_init_with_per_minute(self):
         """Test rate limiter initialization with per-minute limit."""
-        mock_limiter = Mock()
-        mock_limiter_class.return_value = mock_limiter
-        
         limiter = RateLimiter(requests_per_minute=120.0)
         assert limiter.requests_per_minute == 120.0
+        assert limiter._simple_limiter is not None
 
-    @patch('paperseek.utils.rate_limiter.Limiter')
-    def test_init_with_both_limits(self, mock_limiter_class):
+    def test_init_with_both_limits(self):
         """Test initialization with both per-second and per-minute limits."""
-        mock_limiter = Mock()
-        mock_limiter_class.return_value = mock_limiter
-        
         limiter = RateLimiter(requests_per_second=2.0, requests_per_minute=100.0)
         assert limiter.requests_per_second == 2.0
         assert limiter.requests_per_minute == 100.0
+        assert limiter._simple_limiter is not None
 
     def test_init_no_limits(self):
         """Test initialization with no rate limits."""
         limiter = RateLimiter()
-        assert limiter.limiter is None
+        assert limiter._simple_limiter is not None
 
-    @patch('paperseek.utils.rate_limiter.Limiter')
-    def test_wait_if_needed_with_limiter(self, mock_limiter_class):
+    def test_wait_if_needed_with_limiter(self):
         """Test wait_if_needed with active limiter."""
-        mock_limiter = Mock()
-        mock_limiter_class.return_value = mock_limiter
-        
         limiter = RateLimiter(requests_per_second=10.0)
         
         # Should not raise
         limiter.wait_if_needed()
         limiter.wait_if_needed()
-        
-        # Verify the limiter was called
-        assert mock_limiter.try_acquire.call_count == 2
 
     def test_wait_if_needed_without_limiter(self):
         """Test wait_if_needed with no limiter (no limits)."""

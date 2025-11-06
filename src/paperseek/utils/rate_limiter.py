@@ -4,7 +4,13 @@ import time
 from collections import deque
 from threading import Lock
 from typing import Dict, Optional
-from pyrate_limiter import Duration, Limiter, Rate
+
+# Try to import pyrate_limiter, but fall back to simple implementation if issues
+try:
+    from pyrate_limiter import Duration, Limiter, Rate
+    PYRATE_LIMITER_AVAILABLE = True
+except (ImportError, AttributeError):
+    PYRATE_LIMITER_AVAILABLE = False
 
 
 class RateLimiter:
@@ -12,6 +18,7 @@ class RateLimiter:
     Thread-safe rate limiter for API requests.
 
     Supports both per-second and per-minute rate limits.
+    Uses SimpleRateLimiter implementation due to pyrate_limiter compatibility issues.
     """
 
     def __init__(
@@ -29,32 +36,15 @@ class RateLimiter:
         self.requests_per_second = requests_per_second
         self.requests_per_minute = requests_per_minute
 
-        # Build rate limits
-        rates = []
-        if requests_per_second:
-            rates.append(Rate(int(requests_per_second * 60), Duration.MINUTE))
-        if requests_per_minute:
-            rates.append(Rate(int(requests_per_minute), Duration.MINUTE))
-
-        # Create limiter if any rates specified
-        if rates:
-            self.limiter = Limiter(*rates)
-        else:
-            self.limiter = None
-
-        self._lock = Lock()
+        # Use SimpleRateLimiter implementation directly
+        self._simple_limiter = SimpleRateLimiter(
+            requests_per_second=requests_per_second,
+            requests_per_minute=requests_per_minute
+        )
 
     def wait_if_needed(self) -> None:
         """Wait if rate limit would be exceeded."""
-        if self.limiter:
-            with self._lock:
-                # Try to acquire, this will automatically wait if needed
-                try:
-                    self.limiter.try_acquire("request")
-                except Exception:
-                    # If limiter is at capacity, sleep briefly and retry
-                    time.sleep(0.1)
-                    self.limiter.try_acquire("request")
+        self._simple_limiter.wait_if_needed()
 
 
 class DatabaseRateLimiter:
@@ -109,20 +99,12 @@ class SimpleRateLimiter:
     """
     Simple rate limiter using sliding window algorithm.
 
-    **NOTE**: This class is currently NOT used in the codebase. It exists as a
-    documented fallback implementation in case pyrate-limiter has issues or
-    needs to be replaced. The main codebase uses `RateLimiter` which wraps
-    pyrate-limiter.
+    This is now the PRIMARY implementation used by RateLimiter due to
+    compatibility issues with pyrate-limiter in Python 3.13+.
 
-    If pyrate-limiter proves problematic, this class can be substituted by:
-    1. Updating RateLimiter to use SimpleRateLimiter internally
-    2. Or directly using SimpleRateLimiter in DatabaseClient
-
-    This implementation uses a simple sliding window approach without external
-    dependencies. It tracks request timestamps in deques and enforces limits
-    by checking window sizes before allowing new requests.
-
-    Consider removing this class if it remains unused for multiple releases.
+    Uses a simple sliding window approach without external dependencies.
+    Tracks request timestamps in deques and enforces limits by checking
+    window sizes before allowing new requests.
     """
 
     def __init__(
