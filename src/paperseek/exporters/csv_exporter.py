@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from ..core.models import SearchResult, Paper, Author
+from ..core.models import SearchResult, Paper
 from ..core.exceptions import ExportError
 from ..utils.logging import get_logger
 

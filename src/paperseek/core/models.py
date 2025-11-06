@@ -1,7 +1,7 @@
 """Data models for academic search results."""
 
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional, overload
+from typing import Any, Dict, List, Optional, overload
 from pydantic import BaseModel, Field, ConfigDict
 
 

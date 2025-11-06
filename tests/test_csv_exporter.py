@@ -4,7 +4,6 @@ import pytest
 import tempfile
 import csv
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 from paperseek.exporters.csv_exporter import CSVExporter, StreamingCSVExporter
 from paperseek.core.models import SearchResult, Paper, Author

@@ -6,6 +6,13 @@ from ..core.base import DatabaseClient
 from ..core.models import Paper, Author, SearchFilters, SearchResult
 from ..core.config import DatabaseConfig
 from ..core.exceptions import APIError
+from ..utils.normalization import (
+    TextNormalizer,
+    DateNormalizer,
+    AuthorNormalizer,
+    IdentifierNormalizer,
+    URLNormalizer,
+)
 
 
 class SemanticScholarClient(DatabaseClient):
@@ -248,28 +255,25 @@ class SemanticScholarClient(DatabaseClient):
         Returns:
             Normalized Paper object
         """
-        # Extract external IDs
+        # Extract external IDs using normalizers
         external_ids = raw_data.get("externalIds", {})
-        doi = external_ids.get("DOI")
-        pmid = external_ids.get("PubMed")
-        arxiv_id = external_ids.get("ArXiv")
+        doi = IdentifierNormalizer.clean_doi(external_ids.get("DOI"))
+        pmid = IdentifierNormalizer.extract_pmid(external_ids.get("PubMed"))
+        arxiv_id = IdentifierNormalizer.extract_arxiv_id(external_ids.get("ArXiv"))
 
-        # Extract authors
+        # Extract authors using AuthorNormalizer
         authors = []
         for author_data in raw_data.get("authors", []):
-            name = author_data.get("name", "Unknown")
-            authors.append(
-                Author(
-                    name=name,
-                    affiliation=None,  # S2 doesn't provide affiliation in basic API
-                    orcid=None,
-                )
+            author = AuthorNormalizer.create_author(
+                name=author_data.get("name"),
+                # S2 doesn't provide affiliation in basic API
             )
+            authors.append(author)
 
-        # Extract venue
-        venue = raw_data.get("venue")
+        # Extract venue with text normalization
+        venue = TextNormalizer.clean_text(raw_data.get("venue"))
 
-        # Determine type
+        # Determine type - S2 provides publication types
         pub_types = raw_data.get("publicationTypes", [])
         conference = None
         journal = None
@@ -282,47 +286,60 @@ class SemanticScholarClient(DatabaseClient):
             # Default to journal
             journal = venue
 
-        # Extract keywords from fields of study
+        # Extract keywords from fields of study with text normalization
         keywords = []
         for field in raw_data.get("s2FieldsOfStudy", []):
             if field.get("category"):
-                keywords.append(field["category"])
+                cleaned_keyword = TextNormalizer.clean_text(field["category"])
+                if cleaned_keyword:
+                    keywords.append(cleaned_keyword)
 
-        # Get PDF URL
+        # Get PDF URL using URLNormalizer
         pdf_url = None
         oa_pdf = raw_data.get("openAccessPdf")
         if oa_pdf:
-            pdf_url = oa_pdf.get("url")
+            pdf_url = URLNormalizer.clean_url(oa_pdf.get("url"))
+
+        # Extract year using DateNormalizer
+        year = DateNormalizer.extract_year(raw_data.get("year"))
+        
+        # Clean text fields
+        title = TextNormalizer.clean_text(raw_data.get("title")) or "Unknown"
+        abstract = TextNormalizer.clean_text(raw_data.get("abstract"))
+        publication_date = raw_data.get("publicationDate")
+        
+        # Construct and clean URL
+        paper_id = raw_data.get("paperId")
+        url = None
+        if paper_id:
+            url = URLNormalizer.clean_url(
+                f"https://www.semanticscholar.org/paper/{paper_id}"
+            )
 
         return Paper(
             doi=doi,
             pmid=pmid,
             arxiv_id=arxiv_id,
-            title=raw_data.get("title", "Unknown"),
+            title=title,
             authors=authors,
-            abstract=raw_data.get("abstract"),
-            year=raw_data.get("year"),
-            publication_date=raw_data.get("publicationDate"),
+            abstract=abstract,
+            year=year,
+            publication_date=publication_date,
             venue=venue,
             journal=journal,
             conference=conference,
             keywords=keywords,
             citation_count=raw_data.get("citationCount"),
             reference_count=raw_data.get("referenceCount"),
-            url=(
-                f"https://www.semanticscholar.org/paper/{raw_data.get('paperId')}"
-                if raw_data.get("paperId")
-                else None
-            ),
+            url=url,
             pdf_url=pdf_url,
             is_open_access=raw_data.get("isOpenAccess"),
             source_database=self.database_name,
-            source_id=raw_data.get("paperId"),
+            source_id=paper_id,
             extra_data={
-                "s2_paper_id": raw_data.get("paperId"),
+                "s2_paper_id": paper_id,
                 "publication_types": pub_types,
                 "fields_of_study": raw_data.get("fieldsOfStudy"),
-                "raw": raw_data,
             },
         )
 

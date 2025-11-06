@@ -1,7 +1,7 @@
 """Rate limiting utilities for API requests."""
 
 import time
-from collections import defaultdict, deque
+from collections import deque
 from threading import Lock
 from typing import Dict, Optional
 from pyrate_limiter import Duration, Limiter, Rate
@@ -107,9 +107,22 @@ class DatabaseRateLimiter:
 
 class SimpleRateLimiter:
     """
-    Simple rate limiter using sliding window.
+    Simple rate limiter using sliding window algorithm.
 
-    Fallback implementation if pyrate-limiter has issues.
+    **NOTE**: This class is currently NOT used in the codebase. It exists as a
+    documented fallback implementation in case pyrate-limiter has issues or
+    needs to be replaced. The main codebase uses `RateLimiter` which wraps
+    pyrate-limiter.
+
+    If pyrate-limiter proves problematic, this class can be substituted by:
+    1. Updating RateLimiter to use SimpleRateLimiter internally
+    2. Or directly using SimpleRateLimiter in DatabaseClient
+
+    This implementation uses a simple sliding window approach without external
+    dependencies. It tracks request timestamps in deques and enforces limits
+    by checking window sizes before allowing new requests.
+
+    Consider removing this class if it remains unused for multiple releases.
     """
 
     def __init__(

@@ -11,6 +11,7 @@ from .config import DatabaseConfig
 from .exceptions import APIError, RateLimitError, TimeoutError, AuthenticationError
 from ..utils.rate_limiter import RateLimiter
 from ..utils.logging import get_logger
+from ..utils.session_pool import SessionPool
 
 
 class DatabaseClient(ABC):
@@ -45,11 +46,52 @@ class DatabaseClient(ABC):
             requests_per_minute=config.rate_limit_per_minute,
         )
 
-        # Set up requests session with retry logic
-        self.session = self._create_session()
+        # Get shared session from pool
+        self.session = self._get_or_create_session()
+
+    def _get_or_create_session(self) -> requests.Session:
+        """
+        Get session from pool or create a new one with retry configuration.
+        
+        Uses SessionPool for better connection reuse and memory efficiency.
+        """
+        # Get shared session from pool
+        session = SessionPool.get_session(
+            database=self.database_name,
+            pool_connections=10,
+            pool_maxsize=20,
+            max_retries=0,  # We handle retries via HTTPAdapter below
+        )
+
+        # Configure retry strategy if not already configured
+        # Check if session already has our retry adapter
+        if not hasattr(session, '_retry_configured'):
+            retry_strategy = Retry(
+                total=self.config.max_retries,
+                backoff_factor=self.config.retry_delay,
+                status_forcelist=[429, 500, 502, 503, 504],
+                allowed_methods=["GET", "POST", "HEAD"],
+            )
+
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
+            
+            # Mark as configured to avoid reconfiguration
+            session._retry_configured = True  # type: ignore
+
+        # Update headers (this is safe to do multiple times)
+        session.headers.update({"User-Agent": self._get_user_agent()})
+
+        return session
 
     def _create_session(self) -> requests.Session:
-        """Create a requests session with retry configuration."""
+        """
+        Create a requests session with retry configuration.
+        
+        Deprecated: Use _get_or_create_session() instead.
+        This method is kept for backward compatibility.
+        """
         session = requests.Session()
 
         # Configure retries for connection errors
@@ -274,9 +316,15 @@ class DatabaseClient(ABC):
         ]
 
     def close(self) -> None:
-        """Close the client session."""
-        if self.session:
-            self.session.close()
+        """
+        Close the client session.
+        
+        Note: Since we use SessionPool, we don't actually close the session
+        as it's shared. The session will be closed when SessionPool.close_all_sessions()
+        is called during application shutdown.
+        """
+        # Don't close the session as it's shared via SessionPool
+        pass
 
     def __enter__(self) -> "DatabaseClient":
         """Context manager entry."""

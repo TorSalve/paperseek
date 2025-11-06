@@ -5,8 +5,14 @@ import xml.etree.ElementTree as ET
 
 from ..core.base import DatabaseClient
 from ..core.models import Paper, Author, SearchFilters, SearchResult
-from ..core.config import DatabaseConfig
 from ..core.exceptions import APIError
+from ..utils.normalization import (
+    TextNormalizer,
+    DateNormalizer,
+    AuthorNormalizer,
+    IdentifierNormalizer,
+    URLNormalizer,
+)
 
 
 class PubMedClient(DatabaseClient):
@@ -281,45 +287,57 @@ class PubMedClient(DatabaseClient):
 
         # Extract PMID
         pmid_elem = medline_citation.find("PMID")
-        pmid = pmid_elem.text if pmid_elem is not None else None
+        pmid = IdentifierNormalizer.extract_pmid(
+            pmid_elem.text if pmid_elem is not None else None
+        )
 
-        # Extract title
+        # Extract title with text normalization
         title_elem = article.find("ArticleTitle")
-        title = title_elem.text if title_elem is not None else "Unknown"
+        title = TextNormalizer.clean_text(
+            title_elem.text if title_elem is not None else None
+        ) or "Unknown"
 
-        # Extract authors
+        # Extract authors using AuthorNormalizer
         authors = []
         author_list = article.find("AuthorList")
         if author_list is not None:
             for author_elem in author_list.findall("Author"):
                 last_name = author_elem.findtext("LastName", "")
                 fore_name = author_elem.findtext("ForeName", "")
-                name = f"{fore_name} {last_name}".strip() or "Unknown"
-
+                
                 # Get affiliation
                 affiliation_elem = author_elem.find(".//Affiliation")
-                affiliation = affiliation_elem.text if affiliation_elem is not None else None
+                affiliation = TextNormalizer.clean_text(
+                    affiliation_elem.text if affiliation_elem is not None else None
+                )
 
-                authors.append(Author(name=name, affiliation=affiliation))
+                author = AuthorNormalizer.create_author(
+                    given=fore_name,
+                    family=last_name,
+                    affiliation=affiliation
+                )
+                authors.append(author)
 
-        # Extract abstract
+        # Extract abstract with text normalization
         abstract_elem = article.find("Abstract/AbstractText")
-        abstract = abstract_elem.text if abstract_elem is not None else None
+        abstract = TextNormalizer.clean_text(
+            abstract_elem.text if abstract_elem is not None else None
+        )
 
-        # Extract year
+        # Extract year using DateNormalizer
         year = None
         pub_date = article.find(".//PubDate")
         if pub_date is not None:
             year_elem = pub_date.find("Year")
-            if year_elem is not None and year_elem.text is not None:
-                try:
-                    year = int(year_elem.text)
-                except (ValueError, TypeError):
-                    pass
+            year = DateNormalizer.extract_year(
+                year_elem.text if year_elem is not None else None
+            )
 
-        # Extract journal
+        # Extract journal with text normalization
         journal_elem = article.find(".//Journal/Title")
-        journal = journal_elem.text if journal_elem is not None else None
+        journal = TextNormalizer.clean_text(
+            journal_elem.text if journal_elem is not None else None
+        )
 
         # Extract DOI
         doi = None
@@ -327,23 +345,26 @@ class PubMedClient(DatabaseClient):
         if article_id_list is not None:
             for article_id in article_id_list.findall("ArticleId"):
                 if article_id.get("IdType") == "doi":
-                    doi = article_id.text
+                    doi = IdentifierNormalizer.clean_doi(article_id.text)
                     break
 
-        # Extract keywords
+        # Extract keywords with text normalization
         keywords = []
         keyword_list = medline_citation.find("KeywordList")
         if keyword_list is not None:
             for keyword_elem in keyword_list.findall(".//Keyword"):
                 if keyword_elem.text:
-                    keywords.append(keyword_elem.text)
+                    cleaned_keyword = TextNormalizer.clean_text(keyword_elem.text)
+                    if cleaned_keyword:
+                        keywords.append(cleaned_keyword)
 
         # Construct URL
         url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else None
+        url = URLNormalizer.clean_url(url)
 
         return Paper(
             doi=doi,
-            title=title if title else "Unknown",
+            title=title,
             authors=authors,
             abstract=abstract,
             year=year,
@@ -355,7 +376,6 @@ class PubMedClient(DatabaseClient):
             source_id=pmid,
             extra_data={
                 "pmid": pmid,
-                "raw_xml": ET.tostring(article_elem, encoding="unicode"),
             },
         )
 

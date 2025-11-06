@@ -1,8 +1,7 @@
 """Unified client for searching across multiple databases."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional, Union
-import time
+from typing import Dict, List, Optional
 
 from .base import DatabaseClient
 from .models import SearchFilters, SearchResult, Paper
@@ -26,6 +25,37 @@ class UnifiedSearchClient:
 
     This client orchestrates searches across CrossRef, OpenAlex,
     Semantic Scholar, and DOI.org with fallback support and result merging.
+
+    Examples:
+        Basic usage with default configuration:
+
+        >>> from paperseek import UnifiedSearchClient, SearchFilters
+        >>> client = UnifiedSearchClient()
+        >>> filters = SearchFilters(title="machine learning", max_results=10)
+        >>> results = client.search(filters)
+        >>> print(f"Found {len(results)} papers")
+
+        Searching specific databases in parallel:
+
+        >>> client = UnifiedSearchClient(
+        ...     databases=["arxiv", "semantic_scholar"],
+        ...     fallback_mode="parallel"
+        ... )
+        >>> filters = SearchFilters(author="LeCun", year=2020)
+        >>> results = client.search(filters, databases=["arxiv", "pubmed"])
+
+        Using custom configuration:
+
+        >>> config_dict = {
+        ...     "email": "researcher@university.edu",
+        ...     "semantic_scholar": {"api_key": "your-api-key"}
+        ... }
+        >>> client = UnifiedSearchClient(config_dict=config_dict)
+
+        Sequential search with fallback:
+
+        >>> client = UnifiedSearchClient(fallback_mode="sequential")
+        >>> results = client.search(filters)  # Tries databases in order
     """
 
     def __init__(
@@ -144,6 +174,35 @@ class UnifiedSearchClient:
 
         Returns:
             SearchResult object with combined results
+
+        Examples:
+            Search by title:
+
+            >>> client = UnifiedSearchClient()
+            >>> results = client.search(title="attention is all you need")
+            >>> print(f"Found {len(results)} papers")
+
+            Search by author and year:
+
+            >>> results = client.search(author="Hinton", year=2020)
+            >>> for paper in results.papers:
+            ...     print(f"{paper.title} ({paper.year})")
+
+            Search with multiple criteria:
+
+            >>> results = client.search(
+            ...     venue="NeurIPS",
+            ...     year_range=(2018, 2022),
+            ...     keywords=["deep learning", "transformers"],
+            ...     max_results=50
+            ... )
+
+            Search by DOI:
+
+            >>> results = client.search(doi="10.1038/nature14539")
+            >>> if results.papers:
+            ...     paper = results.papers[0]
+            ...     print(f"Title: {paper.title}")
         """
         # Build search filters
         filters = SearchFilters(

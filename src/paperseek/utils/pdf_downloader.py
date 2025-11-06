@@ -5,12 +5,10 @@ This module provides functionality to download PDFs from academic papers
 with polite, conservative rate limiting and proper error handling.
 """
 
-import os
 import time
 import hashlib
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple
-from urllib.parse import urlparse
+from typing import Optional, List, Dict
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry

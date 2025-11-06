@@ -67,10 +67,6 @@ def exponential_backoff_retry(
                     )
 
                     time.sleep(current_delay)
-                except Exception as e:
-                    # Don't retry on other exceptions
-                    logger.error(f"Non-retryable error in {func.__name__}: {str(e)}")
-                    raise
 
         return wrapper
 
@@ -158,9 +154,6 @@ class RetryHandler:
                 )
 
                 time.sleep(current_delay)
-            except Exception as e:
-                self.logger.error(f"Non-retryable error in {func.__name__}: {str(e)}")
-                raise
 
     def calculate_delay(self, attempt: int, retry_after: Optional[int] = None) -> float:
         """

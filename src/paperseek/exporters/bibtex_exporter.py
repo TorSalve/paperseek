@@ -1,7 +1,6 @@
 """BibTeX exporter for search results."""
 
 from pathlib import Path
-from typing import Optional
 import re
 
 from ..core.models import SearchResult, Paper, Author

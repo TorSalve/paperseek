@@ -6,8 +6,14 @@ from datetime import datetime
 
 from ..core.base import DatabaseClient
 from ..core.models import Paper, Author, SearchFilters, SearchResult
-from ..core.config import DatabaseConfig
 from ..core.exceptions import APIError
+from ..utils.normalization import (
+    TextNormalizer,
+    DateNormalizer,
+    AuthorNormalizer,
+    IdentifierNormalizer,
+    URLNormalizer,
+)
 
 
 class ArXivClient(DatabaseClient):
@@ -216,23 +222,26 @@ class ArXivClient(DatabaseClient):
         # Extract arXiv ID
         id_elem = entry.find("atom:id", self.ATOM_NS)
         arxiv_url = id_elem.text if id_elem is not None else None
-        arxiv_id = arxiv_url.split("/abs/")[-1] if arxiv_url else None
+        arxiv_id = IdentifierNormalizer.extract_arxiv_id(arxiv_url) if arxiv_url else None
 
         # Extract title
         title_elem = entry.find("atom:title", self.ATOM_NS)
-        title = title_elem.text.strip() if title_elem is not None and title_elem.text else "Unknown"
+        title = TextNormalizer.clean_text(
+            title_elem.text if title_elem is not None else None
+        ) or "Unknown"
 
         # Extract authors
         authors = []
         for author_elem in entry.findall("atom:author", self.ATOM_NS):
             name_elem = author_elem.find("atom:name", self.ATOM_NS)
             if name_elem is not None and name_elem.text:
-                authors.append(Author(name=name_elem.text.strip()))
+                author = AuthorNormalizer.create_author(name=name_elem.text)
+                authors.append(author)
 
         # Extract abstract
         summary_elem = entry.find("atom:summary", self.ATOM_NS)
-        abstract = (
-            summary_elem.text.strip() if summary_elem is not None and summary_elem.text else None
+        abstract = TextNormalizer.clean_text(
+            summary_elem.text if summary_elem is not None else None
         )
 
         # Extract publication date
@@ -241,18 +250,16 @@ class ArXivClient(DatabaseClient):
         publication_date = None
         if published_elem is not None and published_elem.text:
             publication_date = published_elem.text
-            try:
-                date_obj = datetime.fromisoformat(publication_date.replace("Z", "+00:00"))
-                year = date_obj.year
-            except (ValueError, AttributeError):
-                pass
+            year = DateNormalizer.extract_year(publication_date)
 
         # Extract categories (used as keywords)
         keywords = []
         for category_elem in entry.findall("atom:category", self.ATOM_NS):
             term = category_elem.get("term")
             if term:
-                keywords.append(term)
+                cleaned_term = TextNormalizer.clean_text(term)
+                if cleaned_term:
+                    keywords.append(cleaned_term)
 
         # Extract DOI if available
         doi = None
@@ -260,24 +267,31 @@ class ArXivClient(DatabaseClient):
             if link_elem.get("title") == "doi":
                 doi_url = link_elem.get("href", "")
                 if doi_url:
-                    doi = doi_url.replace("http://dx.doi.org/", "").replace("https://doi.org/", "")
+                    doi = IdentifierNormalizer.clean_doi(doi_url)
 
         # Extract PDF URL
         pdf_url = None
         for link_elem in entry.findall("atom:link", self.ATOM_NS):
             if link_elem.get("title") == "pdf":
-                pdf_url = link_elem.get("href")
+                pdf_url = URLNormalizer.clean_url(link_elem.get("href"))
                 break
 
         # Extract primary category (venue)
         primary_category = entry.find(
             "arxiv:primary_category", {"arxiv": "http://arxiv.org/schemas/atom"}
         )
-        venue = primary_category.get("term") if primary_category is not None else None
+        venue = TextNormalizer.clean_text(
+            primary_category.get("term") if primary_category is not None else None
+        )
 
         # Construct comment field
         comment_elem = entry.find("arxiv:comment", {"arxiv": "http://arxiv.org/schemas/atom"})
-        comment = comment_elem.text if comment_elem is not None else None
+        comment = TextNormalizer.clean_text(
+            comment_elem.text if comment_elem is not None else None
+        )
+        
+        # Clean arXiv URL
+        arxiv_url_clean = URLNormalizer.clean_url(arxiv_url)
 
         return Paper(
             doi=doi,
@@ -288,7 +302,7 @@ class ArXivClient(DatabaseClient):
             publication_date=publication_date,
             venue=venue,
             keywords=keywords,
-            url=arxiv_url,
+            url=arxiv_url_clean,
             pdf_url=pdf_url,
             is_open_access=True,  # All arXiv papers are open access
             source_database=self.database_name,

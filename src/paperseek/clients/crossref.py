@@ -7,6 +7,14 @@ from ..core.base import DatabaseClient
 from ..core.models import Paper, Author, SearchFilters, SearchResult
 from ..core.config import DatabaseConfig
 from ..core.exceptions import APIError
+from ..utils.normalization import (
+    TextNormalizer,
+    DateNormalizer,
+    AuthorNormalizer,
+    IdentifierNormalizer,
+    URLNormalizer,
+    VenueNormalizer,
+)
 
 
 class CrossRefClient(DatabaseClient):
@@ -166,83 +174,90 @@ class CrossRefClient(DatabaseClient):
         Returns:
             Normalized Paper object
         """
-        # Extract authors
+        # Extract authors using AuthorNormalizer
         authors = []
         for author_data in raw_data.get("author", []):
-            name_parts = []
-            if "given" in author_data:
-                name_parts.append(author_data["given"])
-            if "family" in author_data:
-                name_parts.append(author_data["family"])
-
-            name = " ".join(name_parts) if name_parts else "Unknown"
-
-            authors.append(
-                Author(
-                    name=name,
-                    affiliation=(
-                        author_data.get("affiliation", [{}])[0].get("name")
-                        if author_data.get("affiliation")
-                        else None
-                    ),
-                    orcid=author_data.get("ORCID"),
-                )
+            author = AuthorNormalizer.create_author(
+                given=author_data.get("given"),
+                family=author_data.get("family"),
+                affiliation=(
+                    author_data.get("affiliation", [{}])[0].get("name")
+                    if author_data.get("affiliation")
+                    else None
+                ),
+                orcid=IdentifierNormalizer.clean_doi(author_data.get("ORCID")),  # Clean ORCID
             )
+            authors.append(author)
 
-        # Extract year
-        year = None
+        # Extract year using DateNormalizer
         pub_date = raw_data.get("published-print") or raw_data.get("published-online")
-        if pub_date and "date-parts" in pub_date:
-            date_parts = pub_date["date-parts"][0]
-            if date_parts:
-                year = date_parts[0]
+        year = DateNormalizer.extract_year(pub_date)
+        
+        # Parse date parts if available
+        publication_date = None
+        if pub_date:
+            publication_date = DateNormalizer.parse_date_parts(pub_date)
 
-        # Extract venue/journal
+        # Extract venue/journal using VenueNormalizer
         container_titles = raw_data.get("container-title", [])
-        venue = container_titles[0] if container_titles else None
+        venue = VenueNormalizer.extract_venue_from_list(container_titles)
 
-        # Determine if conference or journal
-        conference = None
-        journal = None
+        # Determine if conference or journal using VenueNormalizer
         paper_type = raw_data.get("type", "")
-        if "proceedings" in paper_type:
-            conference = venue
-        else:
-            journal = venue
+        journal, conference = VenueNormalizer.classify_venue_type(
+            venue=venue,
+            publication_type=paper_type
+        )
 
-        # Extract abstract
-        abstract = raw_data.get("abstract")
+        # Extract abstract with text normalization
+        abstract = TextNormalizer.clean_text(raw_data.get("abstract"))
 
-        # Extract title
-        title_list = raw_data.get("title", ["Unknown"])
-        title = title_list[0] if title_list else "Unknown"
+        # Extract title with text normalization
+        title_list = raw_data.get("title", [])
+        title = VenueNormalizer.extract_venue_from_list(title_list, default="Unknown")
+        title = TextNormalizer.clean_text(title) or "Unknown"
+
+        # Extract DOI
+        doi = IdentifierNormalizer.clean_doi(raw_data.get("DOI"))
+        
+        # Extract URL
+        url = URLNormalizer.clean_url(raw_data.get("URL"))
+        
+        # Extract PDF URL from links
+        links = raw_data.get("link", [])
+        pdf_url = URLNormalizer.extract_pdf_url(links) if links else None
+
+        # Clean text fields
+        volume = TextNormalizer.clean_text(raw_data.get("volume"))
+        issue = TextNormalizer.clean_text(raw_data.get("issue"))
+        pages = TextNormalizer.clean_text(raw_data.get("page"))
+        publisher = TextNormalizer.clean_text(raw_data.get("publisher"))
 
         return Paper(
-            doi=raw_data.get("DOI"),
+            doi=doi,
             title=title,
             authors=authors,
             abstract=abstract,
             year=year,
+            publication_date=publication_date,
             venue=venue,
             journal=journal,
             conference=conference,
-            volume=raw_data.get("volume"),
-            issue=raw_data.get("issue"),
-            pages=raw_data.get("page"),
-            publisher=raw_data.get("publisher"),
+            volume=volume,
+            issue=issue,
+            pages=pages,
+            publisher=publisher,
             citation_count=raw_data.get("is-referenced-by-count"),
             reference_count=raw_data.get("references-count"),
-            url=raw_data.get("URL"),
-            is_open_access=any(
-                link.get("content-type") == "application/pdf" for link in raw_data.get("link", [])
-            ),
+            url=url,
+            pdf_url=pdf_url,
+            is_open_access=pdf_url is not None,  # Has PDF link = open access
             source_database=self.database_name,
-            source_id=raw_data.get("DOI"),
+            source_id=doi,
             extra_data={
-                "type": raw_data.get("type"),
+                "type": paper_type,
                 "issn": raw_data.get("ISSN"),
                 "subject": raw_data.get("subject"),
-                "raw": raw_data,
             },
         )
 

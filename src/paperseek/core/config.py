@@ -1,6 +1,5 @@
 """Configuration management for academic search."""
 
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 import yaml
@@ -193,26 +192,27 @@ def load_config(
     Returns:
         AcademicSearchConfig instance
     """
+    # Collect all config sources and merge them
+    configs = []
+
     # Start with environment variables if enabled
     if use_env:
-        config = AcademicSearchConfig.from_env()
-    else:
-        config = AcademicSearchConfig()
+        configs.append(AcademicSearchConfig.from_env().model_dump())
 
-    # Override with file config
+    # Add file config
     if config_file:
-        file_config = AcademicSearchConfig.from_yaml(config_file)
-        # Merge configurations
-        for field_name in AcademicSearchConfig.model_fields:
-            setattr(config, field_name, getattr(file_config, field_name))
+        configs.append(AcademicSearchConfig.from_yaml(config_file).model_dump())
 
-    # Override with dict config
+    # Add dict config (highest priority)
     if config_dict:
-        dict_config = AcademicSearchConfig.from_dict(config_dict)
-        for field_name in AcademicSearchConfig.model_fields:
-            value = getattr(dict_config, field_name)
-            # Only override if value is not default
-            if value != AcademicSearchConfig.model_fields[field_name].default:
-                setattr(config, field_name, value)
+        configs.append(config_dict)
 
-    return config
+    # Merge dictionaries (later values override earlier)
+    # Only override with non-None values to preserve lower-priority settings
+    merged = {}
+    for cfg in configs:
+        for key, value in cfg.items():
+            if value is not None:
+                merged[key] = value
+
+    return AcademicSearchConfig(**merged)

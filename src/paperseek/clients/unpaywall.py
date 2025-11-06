@@ -4,8 +4,14 @@ from typing import Any, Dict, List, Optional
 
 from ..core.base import DatabaseClient
 from ..core.models import Paper, Author, SearchFilters, SearchResult
-from ..core.config import DatabaseConfig
 from ..core.exceptions import APIError
+from ..utils.normalization import (
+    TextNormalizer,
+    DateNormalizer,
+    AuthorNormalizer,
+    IdentifierNormalizer,
+    URLNormalizer,
+)
 
 
 class UnpaywallClient(DatabaseClient):

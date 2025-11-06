@@ -5,8 +5,15 @@ import xml.etree.ElementTree as ET
 
 from ..core.base import DatabaseClient
 from ..core.models import Paper, Author, SearchFilters, SearchResult
-from ..core.config import DatabaseConfig
 from ..core.exceptions import APIError
+from ..utils.normalization import (
+    TextNormalizer,
+    DateNormalizer,
+    AuthorNormalizer,
+    IdentifierNormalizer,
+    URLNormalizer,
+    VenueNormalizer,
+)
 
 
 class DBLPClient(DatabaseClient):
@@ -185,56 +192,62 @@ class DBLPClient(DatabaseClient):
         """
         # Extract title
         title_elem = info_elem.find("title")
-        title = title_elem.text if title_elem is not None else "Unknown"
+        title = TextNormalizer.clean_text(
+            title_elem.text if title_elem is not None else None
+        ) or "Unknown"
 
         # Extract authors
         authors = []
         for author_elem in info_elem.findall("author"):
             if author_elem.text:
-                authors.append(Author(name=author_elem.text))
+                author = AuthorNormalizer.create_author(name=author_elem.text)
+                authors.append(author)
 
         # Extract venue information
         venue_elem = info_elem.find("venue")
-        venue = venue_elem.text if venue_elem is not None else None
+        venue = TextNormalizer.clean_text(
+            venue_elem.text if venue_elem is not None else None
+        )
 
-        # Determine if journal or conference
+        # Determine if journal or conference using VenueNormalizer
         pub_type = info_elem.find("type")
         pub_type_str = pub_type.text if pub_type is not None else None
-
-        journal = None
-        conference = None
-        if pub_type_str in ["Journal Articles", "Informal Publications"]:
-            journal = venue
-        elif pub_type_str in ["Conference and Workshop Papers"]:
-            conference = venue
-        else:
-            # Default to conference for computer science
-            conference = venue
+        
+        # Use VenueNormalizer to classify venue
+        journal, conference = VenueNormalizer.classify_venue_type(
+            venue=venue,
+            publication_type=pub_type_str
+        )
 
         # Extract year
-        year = None
         year_elem = info_elem.find("year")
-        if year_elem is not None and year_elem.text:
-            try:
-                year = int(year_elem.text)
-            except (ValueError, TypeError):
-                pass
+        year = DateNormalizer.extract_year(
+            year_elem.text if year_elem is not None else None
+        )
 
         # Extract DOI
         doi_elem = info_elem.find("doi")
-        doi = doi_elem.text if doi_elem is not None else None
+        doi = IdentifierNormalizer.clean_doi(
+            doi_elem.text if doi_elem is not None else None
+        )
 
         # Extract URL (DBLP page)
         url_elem = info_elem.find("url")
-        url = url_elem.text if url_elem is not None else None
+        url = URLNormalizer.clean_url(
+            url_elem.text if url_elem is not None else None
+        )
 
         # Extract electronic edition (ee) - often links to PDF or publisher page
         ee_elem = info_elem.find("ee")
-        ee_url = ee_elem.text if ee_elem is not None else None
+        ee_url = URLNormalizer.clean_url(
+            ee_elem.text if ee_elem is not None else None
+        )
 
         # Extract DBLP key
         key_elem = info_elem.find("key")
-        dblp_key = key_elem.text if key_elem is not None else None
+        dblp_key = TextNormalizer.clean_text(
+            key_elem.text if key_elem is not None else None
+        )
 
         # Determine PDF URL
         pdf_url = None
